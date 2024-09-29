@@ -4,3 +4,4 @@
 2024-08-01T17:43:53  test(fixtures): trim whitespace in parsed fields
 2024-08-20T12:00:00  chore: IRONCLAD hardening pass
 2024-09-10T19:17:07  build(report): add --fail-on threshold handling
+2024-09-29T14:34:14  docs(mcp): add pagination to large reports

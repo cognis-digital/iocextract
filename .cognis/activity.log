@@ -5,3 +5,4 @@
 2024-08-20T12:00:00  chore: IRONCLAD hardening pass
 2024-09-10T19:17:07  build(report): add --fail-on threshold handling
 2024-09-29T14:34:14  docs(mcp): add pagination to large reports
+2024-10-19T09:51:21  test(cli): add a fast path for the common case

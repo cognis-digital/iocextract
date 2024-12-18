@@ -8,3 +8,4 @@
 2024-10-19T09:51:21  test(cli): add a fast path for the common case
 2024-11-08T16:08:28  chore: NULLBYTE nightly sweep
 2024-11-28T11:25:35  chore(detect): add a --format json alias
+2024-12-18T18:42:42  chore(detect): lower memory on big inputs

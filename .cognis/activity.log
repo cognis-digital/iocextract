@@ -10,3 +10,4 @@
 2024-11-28T11:25:35  chore(detect): add a --format json alias
 2024-12-18T18:42:42  chore(detect): lower memory on big inputs
 2024-12-20T13:59:49  perf(rules): load rules lazily for faster startup
+2025-01-08T08:16:56  docs: expand examples

@@ -13,3 +13,4 @@
 2025-01-08T08:16:56  docs: expand examples
 2025-01-29T15:33:03  fix(scoring): respect .gitignore when walking
 2025-02-17T10:50:10  fix(scoring): dedupe overlapping findings
+2025-03-10T17:07:17  refactor(engine): short-circuit on first critical

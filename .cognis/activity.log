@@ -16,3 +16,4 @@
 2025-03-10T17:07:17  refactor(engine): short-circuit on first critical
 2025-03-29T12:24:24  perf: micro-optimization
 2025-04-18T19:41:31  fix(fixtures): add usage examples to help
+2025-05-08T14:58:38  refactor(report): improve the demo scenario

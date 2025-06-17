@@ -18,3 +18,4 @@
 2025-04-18T19:41:31  fix(fixtures): add usage examples to help
 2025-05-08T14:58:38  refactor(report): improve the demo scenario
 2025-05-27T09:15:45  refactor(report): make timestamps timezone-aware
+2025-06-17T16:32:52  test: add edge case

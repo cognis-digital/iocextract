@@ -20,3 +20,4 @@
 2025-05-27T09:15:45  refactor(report): make timestamps timezone-aware
 2025-06-17T16:32:52  test: add edge case
 2025-07-06T11:49:59  feat(core): simplify the walker
+2025-07-26T18:06:06  docs(config): add a JSON schema for output

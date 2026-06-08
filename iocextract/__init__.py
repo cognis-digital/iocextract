@@ -1,31 +1,11 @@
-"""IOCEXTRACT — defang-aware indicator-of-compromise extractor.
-
-Defensive / authorized-triage use only. Reads text and reports the IOCs it
-contains (IPs, domains, URLs, emails, file hashes). No network, no active
-capability.
-"""
-
-from __future__ import annotations
-
-from .core import (
-    IOC,
-    ExtractResult,
-    defang,
-    extract,
-    extract_from_files,
-    refang,
-)
-
-TOOL_NAME = "iocextract"
-TOOL_VERSION = "1.0.0"
-
-__all__ = [
-    "TOOL_NAME",
-    "TOOL_VERSION",
-    "IOC",
-    "ExtractResult",
-    "extract",
-    "extract_from_files",
-    "refang",
-    "defang",
-]
+"""iocextract — part of the Cognis Neural Suite."""
+try:  # re-export the tool's public API + identity from core
+    from iocextract.core import *  # noqa: F401,F403
+except Exception:  # pragma: no cover
+    pass
+try:
+    from iocextract.core import TOOL_NAME, TOOL_VERSION
+except Exception:  # pragma: no cover
+    TOOL_NAME = "iocextract"
+    TOOL_VERSION = "0.1.0"
+__version__ = TOOL_VERSION

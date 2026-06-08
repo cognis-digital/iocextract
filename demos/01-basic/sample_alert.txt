@@ -1,0 +1,31 @@
+SOC TRIAGE NOTE — incident 2026-0608-IR
+Reporter: tier1@example.com  (forwarded from soc[at]corp[.]net)
+
+Summary
+-------
+EDR flagged a workstation beaconing to a suspicious host. Pulled the
+following indicators from the proxy log and the email body for enrichment.
+
+Network
+-------
+Outbound C2 (defanged):  hxxps://malicious-update[.]top/gate.php?id=42
+Fallback domain:         cdn-sync[.]xyz
+Beacon IP:               185.220.101.47
+Secondary IP:            45.155.205.233
+IPv6 seen in DNS:        2001:0db8:85a3:0000:0000:8a2e:0370:7334
+(Note: 8.8.8.8 is the corporate resolver — likely benign.)
+
+Email
+-----
+Phishing sender:  billing[at]invoice-pay[.]shop
+Reply-to:         no-reply@account-verify[.]online
+
+Dropped sample
+--------------
+Filename:  invoice_2026.exe   (do NOT confuse update.dll with a domain)
+MD5:       44d88612fea8a8f36de82e1278abb02f
+SHA1:      3395856ce81f2b7382dee72602f798b642f14140
+SHA256:    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+Action: defang all IOCs before pasting into the shared ticket and submit
+the hashes to the internal sandbox feed.

@@ -123,7 +123,17 @@ Pipes into your stack: **SARIF** for code-scanning, **JSON** for anything, an **
 <div align="right"><a href="#top">↑ back to top</a></div>
 
 <a name="install-anywhere"></a>
-## Install anywhere
+## Install — every way, every platform
+
+```bash
+pip install "git+https://github.com/cognis-digital/iocextract.git"    # pip (works today)
+pipx install "git+https://github.com/cognis-digital/iocextract.git"   # isolated CLI
+uv tool install "git+https://github.com/cognis-digital/iocextract.git" # uv
+pip install cognis-iocextract                                          # PyPI (when published)
+docker run --rm ghcr.io/cognis-digital/iocextract:latest --help        # Docker
+brew install cognis-digital/tap/iocextract                             # Homebrew tap
+curl -fsSL https://raw.githubusercontent.com/cognis-digital/iocextract/main/install.sh | sh
+```
 
 | Linux | macOS | Windows | Docker | Cloud |
 |---|---|---|---|---|

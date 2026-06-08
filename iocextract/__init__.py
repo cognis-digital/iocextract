@@ -1,11 +1,34 @@
-"""iocextract — part of the Cognis Neural Suite."""
-try:  # re-export the tool's public API + identity from core
-    from iocextract.core import *  # noqa: F401,F403
-except Exception:  # pragma: no cover
-    pass
-try:
-    from iocextract.core import TOOL_NAME, TOOL_VERSION
-except Exception:  # pragma: no cover
-    TOOL_NAME = "iocextract"
-    TOOL_VERSION = "0.1.0"
-__version__ = TOOL_VERSION
+"""IOCEXTRACT — defang-aware indicator-of-compromise extractor.
+
+Defensive / authorized-triage use only. Reads text and reports the IOCs it
+contains across 12 types (IPv4/IPv6, URL, domain, email, MD5/SHA1/SHA256,
+CVE, Bitcoin address, Windows registry key). No network, no active capability.
+
+In the spirit of InQuest/iocextract; standard library only, zero-install.
+"""
+
+from __future__ import annotations
+
+from .core import (
+    IOC,
+    IOC_TYPES,
+    TOOL_NAME,
+    TOOL_VERSION,
+    ExtractResult,
+    defang,
+    extract,
+    extract_from_files,
+    refang,
+)
+
+__all__ = [
+    "TOOL_NAME",
+    "TOOL_VERSION",
+    "IOC",
+    "IOC_TYPES",
+    "ExtractResult",
+    "extract",
+    "extract_from_files",
+    "refang",
+    "defang",
+]

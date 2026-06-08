@@ -1,0 +1,55 @@
+THREAT INTEL BRIEF — Operation NULLBYTE (TLP:CLEAR, synthetic sample)
+=====================================================================
+
+Summary
+-------
+The actor delivered a loader via a phishing link and staged a second-stage
+payload from a CDN-fronted host. All indicators below are DEFANGED for safe
+handling and should be refanged by your tooling before ingest.
+
+Network
+-------
+C2 (primary):    hxxps://bad-host[.]top/gate.php?id=42
+C2 (fallback):   hXXp://cdn-sync[.]xyz/beacon
+Bare domain IOC: malware-update[.]live  (no scheme, resolve & block)
+Staging mirror:  ftp[:]//drop[.]example[.]store/payloads/
+Resolver abuse:  8.8.8.8 and 1[.]1[.]1[.]1 (legit, used for liveness checks)
+Sinkhole peer:   185.220.101.47
+IPv6 beacon:     2001:db8::dead:beef
+IPv4-in-v6:      ::ffff:192.168.1.10  (mapped, decoy)
+
+Identity / comms
+----------------
+Phish sender:    billing[at]invoice-portal[.]shop
+Operator inbox:  nullbyte.ops(at)proton(dot)me
+Decoy filename:  invoice_2026.docx  (NOT a domain)
+Decoy library:   wininet.dll          (NOT a domain)
+
+Hashes (samples)
+----------------
+loader  (md5)    : 44d88612fea8a8f36de82e1278abb02f
+stage2  (sha1)   : da39a3ee5e6b4b0d3255bfef95601890afd80709
+payload (sha256) : e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+Exploitation
+------------
+The dropper weaponized CVE-2021-44228 (Log4Shell) and chained
+cve-2023-23397 for privilege context. Older builds referenced CVE-2017-0144.
+
+Persistence
+-----------
+Registry run key:
+  HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\Updater
+User-hive variant:
+  HKCU\Software\Classes\CLSID\{deadbeef}\InprocServer32
+
+Monetization
+------------
+Ransom wallet (legacy P2PKH): 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+Ransom wallet (P2SH):         3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy
+Ransom wallet (bech32):       bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq
+
+Analyst note
+------------
+The string "deadbeefdeadbeefdeadbeefdeadbeef" below is a 32-char hex token and
+will register as an MD5 — expected behavior for this engine.

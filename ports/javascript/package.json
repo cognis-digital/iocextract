@@ -1,0 +1,10 @@
+{
+  "name": "@cognis/iocextract",
+  "version": "0.2.0",
+  "description": "JavaScript port of iocextract (Cognis Neural Suite)",
+  "bin": {
+    "iocextract": "index.js"
+  },
+  "license": "LicenseRef-COCL-1.0",
+  "type": "module"
+}

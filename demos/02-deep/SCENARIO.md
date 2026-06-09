@@ -11,7 +11,7 @@ the way analysts hand off feeds: `hxxps://`, `[.]`, `[at]`, `(dot)`, `ftp[:]//`.
 | ipv4     | `185.220.101.47`, `8.8.8.8`, `1[.]1[.]1[.]1`                |
 | ipv6     | `2001:db8::dead:beef`, `::ffff:192.168.1.10`                |
 | url      | `hxxps://bad-host[.]top/gate.php?id=42`                     |
-| domain   | `malware-update[.]live` (bare; URL/email hosts suppressed)  |
+| domain   | `cdn-sync[.]xyz` (only when not already a URL/email host)    |
 | email    | `billing[at]invoice-portal[.]shop`                          |
 | md5      | `44d88612fea8a8f36de82e1278abb02f`                          |
 | sha1     | `da39a3ee5e6b4b0d3255bfef95601890afd80709`                  |
@@ -40,7 +40,32 @@ python -m iocextract types
 
 # Defang a URL by hand before pasting into a ticket
 python -m iocextract defang https://evil.example.com/x
+
+# Analyst summary: per-type counts + IP-scope rollup + networkable count
+python -m iocextract analyze demos/02-deep/threat_report.txt
+
+# Show per-indicator enrichment (IP scope, hash family, URL host) in the table
+python -m iocextract extract --context demos/02-deep/threat_report.txt
+
+# Keep only routable IPs (drop RFC1918 / loopback / reserved) for a blocklist
+python -m iocextract extract --no-private --type ipv4,ipv6 demos/02-deep/threat_report.txt
 ```
+
+## Enrichment (v2.1)
+
+Every indicator now carries an analyst `context` block:
+
+* **IPs** are classified with the stdlib `ipaddress` module —
+  `scope` (global / private / loopback / reserved / multicast / link-local),
+  `global`, `private`, and a `documentation` flag for TEST-NET / `2001:db8::`.
+  `--no-private` / `ExtractResult.drop_private()` strip non-routable IPs.
+* **Hashes** are tagged with their `family` (md5/sha1/sha256/sha512) and `bits`.
+* **URLs** expose `host` + `scheme`; **emails** expose the `domain`;
+  **BTC** addresses expose `format` (p2pkh/p2sh/bech32);
+  **registry** keys expose the `hive`; **CVEs** expose the `year`.
+
+The `analyze` subcommand rolls these up into per-type counts, an IP-scope
+breakdown, and a `networkable` count (ip/url/domain) for quick triage.
 
 ## Why the BTC addresses are trustworthy
 

@@ -3,6 +3,7 @@
 Subcommands
 -----------
     extract   Pull IOCs from files or stdin (optionally filtered by --type).
+    analyze   Extract + print an analyst summary (counts, IP scopes, signals).
     types     List the IOC types the engine knows about.
     refang    Print the refanged form of input text (debug aid).
     defang    Defang an http(s)/ftp URL or domain handed on the command line.
@@ -35,16 +36,23 @@ def _read_stdin() -> str:
     return sys.stdin.read()
 
 
-def _render_table(result: ExtractResult) -> str:
+def _render_table(result: ExtractResult, show_context: bool) -> str:
     if result.count == 0:
         return "No IOCs found."
     lines = []
     width_t = max(4, max(len(i.type) for i in result.iocs))
-    header = f"{'TYPE'.ljust(width_t)}  DEFANGED"
+    width_v = max(8, min(60, max(len(i.defanged) for i in result.iocs)))
+    header = f"{'TYPE'.ljust(width_t)}  {'DEFANGED'.ljust(width_v)}"
+    if show_context:
+        header += "  CONTEXT"
     lines.append(header)
     lines.append("-" * max(len(header), 24))
     for ioc in result.iocs:
-        lines.append(f"{ioc.type.ljust(width_t)}  {ioc.defanged}")
+        row = f"{ioc.type.ljust(width_t)}  {ioc.defanged.ljust(width_v)}"
+        if show_context and ioc.context:
+            tags = ",".join(f"{k}={v}" for k, v in ioc.context.items())
+            row += f"  {tags}"
+        lines.append(row.rstrip())
     lines.append("")
     summary = ", ".join(
         f"{k}={v}" for k, v in result.as_dict()["by_type"].items()
@@ -53,14 +61,14 @@ def _render_table(result: ExtractResult) -> str:
     return "\n".join(lines)
 
 
-def _emit(result: ExtractResult, fmt: str) -> None:
+def _emit(result: ExtractResult, fmt: str, show_context: bool) -> None:
     if fmt == "json":
         payload = result.as_dict()
         payload["tool"] = TOOL_NAME
         payload["version"] = TOOL_VERSION
         print(json.dumps(payload, indent=2, sort_keys=False))
     else:
-        print(_render_table(result))
+        print(_render_table(result, show_context))
 
 
 def _parse_types(spec: str | None) -> list[str] | None:
@@ -76,6 +84,17 @@ def _parse_types(spec: str | None) -> list[str] | None:
     return wanted
 
 
+def _gather(args) -> ExtractResult:
+    wanted = _parse_types(args.types)
+    if args.paths:
+        result = extract_from_files(args.paths, types=wanted)
+    else:
+        result = extract(_read_stdin(), types=wanted)
+    if getattr(args, "no_private", False):
+        result = result.drop_private()
+    return result
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=TOOL_NAME,
@@ -88,20 +107,36 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    def _add_extract_args(p):
+        p.add_argument(
+            "paths", nargs="*",
+            help="Input file(s). If omitted, reads from stdin.",
+        )
+        p.add_argument(
+            "--type", "-t", dest="types", default=None,
+            help="Comma-separated subset of IOC types to extract "
+                 f"(any of: {', '.join(IOC_TYPES)}).",
+        )
+        p.add_argument(
+            "--no-private", dest="no_private", action="store_true",
+            help="Drop private/loopback/reserved IP addresses (keep routable).",
+        )
+        p.add_argument(
+            "--format", choices=("table", "json"), default="table",
+            help="Output format (default: table).",
+        )
+
     p_ex = sub.add_parser("extract", help="Extract IOCs from files or stdin.")
+    _add_extract_args(p_ex)
     p_ex.add_argument(
-        "paths", nargs="*",
-        help="Input file(s). If omitted, reads from stdin.",
+        "--context", action="store_true",
+        help="Show per-indicator enrichment in the table view.",
     )
-    p_ex.add_argument(
-        "--type", "-t", dest="types", default=None,
-        help="Comma-separated subset of IOC types to extract "
-             f"(any of: {', '.join(IOC_TYPES)}).",
+
+    p_an = sub.add_parser(
+        "analyze", help="Extract and print an analyst summary."
     )
-    p_ex.add_argument(
-        "--format", choices=("table", "json"), default="table",
-        help="Output format (default: table).",
-    )
+    _add_extract_args(p_an)
 
     p_ty = sub.add_parser("types", help="List supported IOC types.")
     p_ty.add_argument(
@@ -127,21 +162,40 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "extract":
         try:
-            wanted = _parse_types(args.types)
+            result = _gather(args)
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
-        try:
-            if args.paths:
-                result = extract_from_files(args.paths, types=wanted)
-            else:
-                result = extract(_read_stdin(), types=wanted)
         except OSError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
+        _emit(result, args.format, getattr(args, "context", False))
+        return 1 if result.count > 0 else 0
 
-        _emit(result, args.format)
-        # Non-zero exit when findings exist (feed/pipeline signal).
+    if args.command == "analyze":
+        try:
+            result = _gather(args)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        summ = result.summary()
+        if args.format == "json":
+            summ["tool"] = TOOL_NAME
+            summ["version"] = TOOL_VERSION
+            print(json.dumps(summ, indent=2, sort_keys=False))
+        else:
+            print(f"IOCEXTRACT analysis — {summ['total']} indicator(s), "
+                  f"{summ['distinct_types']} distinct type(s)")
+            print("-" * 48)
+            for k, v in summ["by_type"].items():
+                print(f"  {k.ljust(10)} {v}")
+            if summ["ip_scopes"]:
+                scopes = ", ".join(f"{k}={v}" for k, v in summ["ip_scopes"].items())
+                print(f"  ip scopes : {scopes}")
+            print(f"  networkable (ip/url/domain): {summ['networkable']}")
         return 1 if result.count > 0 else 0
 
     if args.command == "types":

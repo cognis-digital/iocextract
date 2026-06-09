@@ -7,8 +7,8 @@ library only and zero-install.
 Defensive / authorized-triage use only: this module reads text and reports
 what it finds. It performs no network calls and takes no active actions.
 
-Supported IOC types (12)
-------------------------
+Supported IOC types (11 surfaced)
+---------------------------------
     ipv4      IPv4 addresses (0.0.0.0 - 255.255.255.255)
     ipv6      IPv6 addresses (full / compressed / IPv4-mapped)
     url       http(s)/ftp URLs (defanged hxxp:// understood)
@@ -21,13 +21,18 @@ Supported IOC types (12)
     btc       Bitcoin addresses (P2PKH/P2SH base58 + bech32)
     registry  Windows registry keys (HKLM/HKCU/...)
 
+(SHA-512 is also detected internally and tagged so a 128-char hex digest is not
+mis-bucketed as a shorter hash.)
+
 The engine refangs input first (so defanged feeds match), classifies hashes
 longest-first to avoid sub-matching, suppresses domains already represented
-inside URLs/emails, and deduplicates the final set.
+inside URLs/emails, deduplicates the final set, and enriches each indicator
+with analyst-grade context (IP scope, hash family, URL host, defanged form).
 """
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from dataclasses import dataclass, field
 from typing import Iterable
@@ -140,17 +145,27 @@ _REFANG_SUBS = (
     ("[at]", "@"), ("(at)", "@"), ("[@]", "@"),
 )
 
+# ---------------------------------------------------------------------------
+# Hash family table (length -> canonical label). SHA-512 surfaced as a tag,
+# not a first-class IOC_TYPE, to preserve the 11-type public surface.
+# ---------------------------------------------------------------------------
+_HASH_LEN = {32: "md5", 40: "sha1", 64: "sha256", 128: "sha512"}
+
 
 @dataclass
 class IOC:
     """A single extracted indicator."""
 
     value: str          # original (refanged / canonical) value
-    type: str           # one of IOC_TYPES
+    type: str           # one of IOC_TYPES (or "sha512")
     defanged: str       # safe-to-display representation
+    context: dict = field(default_factory=dict)  # analyst enrichment
 
     def as_dict(self) -> dict:
-        return {"type": self.type, "value": self.value, "defanged": self.defanged}
+        d = {"type": self.type, "value": self.value, "defanged": self.defanged}
+        if self.context:
+            d["context"] = self.context
+        return d
 
 
 @dataclass
@@ -174,9 +189,45 @@ class ExtractResult:
         wanted = set(types)
         return ExtractResult(iocs=[i for i in self.iocs if i.type in wanted])
 
+    def drop_private(self) -> "ExtractResult":
+        """Return a copy without RFC1918/loopback/reserved/doc IPs.
+
+        Useful when you only want routable, externally-actionable indicators.
+        """
+        kept = []
+        for i in self.iocs:
+            if i.type in ("ipv4", "ipv6") and not i.context.get("global", True):
+                continue
+            kept.append(i)
+        return ExtractResult(iocs=kept)
+
+    def summary(self) -> dict:
+        """Analyst summary: per-type counts + a few rolled-up signals."""
+        counts = {k: len(v) for k, v in self.by_type().items()}
+        ordered = {t: counts[t] for t in IOC_TYPES if t in counts}
+        for k in counts:                                  # e.g. sha512 tag
+            ordered.setdefault(k, counts[k])
+        ip_scopes: dict[str, int] = {}
+        for i in self.iocs:
+            if i.type in ("ipv4", "ipv6"):
+                scope = i.context.get("scope", "unknown")
+                ip_scopes[scope] = ip_scopes.get(scope, 0) + 1
+        networkable = sum(
+            len(self.values(t)) for t in ("ipv4", "ipv6", "url", "domain")
+        )
+        return {
+            "total": self.count,
+            "by_type": ordered,
+            "distinct_types": len(ordered),
+            "ip_scopes": ip_scopes,
+            "networkable": networkable,
+        }
+
     def as_dict(self) -> dict:
         counts = {k: len(v) for k, v in self.by_type().items()}
         ordered = {t: counts[t] for t in IOC_TYPES if t in counts}
+        for k in counts:
+            ordered.setdefault(k, counts[k])
         return {
             "count": self.count,
             "by_type": ordered,
@@ -213,6 +264,45 @@ def defang(value: str, ioc_type: str) -> str:
     return out
 
 
+def hash_family(value: str) -> str | None:
+    """Return the hash family label for a hex digest, or None if not a hash."""
+    if re.fullmatch(r"[a-fA-F0-9]+", value or ""):
+        return _HASH_LEN.get(len(value))
+    return None
+
+
+def _ip_context(value: str) -> dict:
+    """Classify an IP literal (scope/global/reserved) using stdlib ipaddress."""
+    try:
+        ip = ipaddress.ip_address(value)
+    except ValueError:
+        return {}
+    if ip.is_loopback:
+        scope = "loopback"
+    elif ip.is_private:
+        scope = "private"
+    elif ip.is_multicast:
+        scope = "multicast"
+    elif ip.is_link_local:
+        scope = "link-local"
+    elif ip.is_reserved or ip.is_unspecified:
+        scope = "reserved"
+    else:
+        scope = "global"
+    ctx = {
+        "version": ip.version,
+        "scope": scope,
+        "global": bool(ip.is_global),
+        "private": bool(ip.is_private),
+    }
+    # Documentation ranges (TEST-NET / 2001:db8::/32) are a common decoy.
+    if value in ("192.0.2.0", "198.51.100.0", "203.0.113.0") or \
+            value.startswith(("192.0.2.", "198.51.100.", "203.0.113.")) or \
+            value.lower().startswith("2001:db8"):
+        ctx["documentation"] = True
+    return ctx
+
+
 def _is_plausible_domain(domain: str) -> bool:
     tld = domain.rsplit(".", 1)[-1].lower()
     if tld not in _VALID_TLDS:
@@ -225,10 +315,9 @@ def _is_plausible_domain(domain: str) -> bool:
 
 
 def _b58_checksum_ok(addr: str) -> bool:
-    """Validate a base58check Bitcoin address (hashlib is stdlib).
+    """Validate a base58check Bitcoin address via 4-byte double-SHA256 checksum.
 
-    Returns True if the 4-byte double-SHA256 checksum matches, which removes
-    the bulk of base58 false positives.
+    This removes the bulk of base58 false positives. ``hashlib`` is stdlib.
     """
     import hashlib
 
@@ -249,12 +338,25 @@ def _b58_checksum_ok(addr: str) -> bool:
     return digest == checksum
 
 
-def _add(seen: set, iocs: list[IOC], value: str, ioc_type: str) -> None:
+def _url_host(url: str) -> str:
+    host = re.sub(r"^[a-z]+://", "", url, flags=re.IGNORECASE)
+    host = host.split("/")[0].split("?")[0].split("#")[0]
+    host = host.split("@")[-1].split(":")[0]
+    return host
+
+
+def _add(seen: set, iocs: list[IOC], value: str, ioc_type: str,
+         context: dict | None = None) -> None:
     key = (ioc_type, value.lower())
     if key in seen:
         return
     seen.add(key)
-    iocs.append(IOC(value=value, type=ioc_type, defanged=defang(value, ioc_type)))
+    iocs.append(IOC(
+        value=value,
+        type=ioc_type,
+        defanged=defang(value, ioc_type),
+        context=context or {},
+    ))
 
 
 def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
@@ -263,17 +365,20 @@ def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
     *types* optionally restricts extraction to a subset of :data:`IOC_TYPES`.
     Returns a deduplicated :class:`ExtractResult`. Discovery order is preserved
     per type; the final list is sorted by canonical type order then discovery.
+    Each indicator carries an analyst ``context`` dict where it adds value
+    (IP scope, hash family, URL host).
     """
     wanted = set(types) if types else set(IOC_TYPES)
     refanged = refang(text)
     iocs: list[IOC] = []
     seen: set = set()
 
-    # Registry keys (matched on raw text so backslash paths stay intact).
+    # Registry keys first; use raw text so backslash paths stay intact.
     if "registry" in wanted:
         for m in _REGISTRY_RE.finditer(text):
             val = m.group(0).rstrip(".,);]\"' ")
-            _add(seen, iocs, val, "registry")
+            hive = val.split("\\", 1)[0].upper()
+            _add(seen, iocs, val, "registry", {"hive": hive})
 
     # Hashes (longest-first), tracking spans to avoid sub-matches.
     consumed: list[tuple[int, int]] = []
@@ -291,8 +396,9 @@ def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
             if _overlaps(m.span()):
                 continue
             consumed.append(m.span())
-            if htype in wanted:
-                _add(seen, iocs, m.group(0).lower(), htype)
+            if htype in wanted or htype == "sha512":
+                _add(seen, iocs, m.group(0).lower(), htype,
+                     {"family": htype, "bits": len(m.group(0)) * 4})
 
     # URLs (capture before bare domains so the full URL wins).
     url_hosts: set[str] = set()
@@ -300,10 +406,10 @@ def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
         for m in _URL_RE.finditer(refanged):
             url = m.group(0).rstrip(".,);]'\">}")
             url = url.replace("hxxps://", "https://").replace("hxxp://", "http://")
+            host = _url_host(url)
+            scheme = url.split("://", 1)[0].lower()
             if "url" in wanted:
-                _add(seen, iocs, url, "url")
-            host = re.sub(r"^[a-z]+://", "", url, flags=re.IGNORECASE)
-            host = host.split("/")[0].split(":")[0].split("@")[-1]
+                _add(seen, iocs, url, "url", {"host": host, "scheme": scheme})
             if host:
                 url_hosts.add(host.lower())
 
@@ -312,9 +418,10 @@ def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
     if "email" in wanted or "domain" in wanted:
         for m in _EMAIL_RE.finditer(refanged):
             email = m.group(0)
+            dom = email.rsplit("@", 1)[-1].lower()
             if "email" in wanted:
-                _add(seen, iocs, email, "email")
-            email_domains.add(email.rsplit("@", 1)[-1].lower())
+                _add(seen, iocs, email, "email", {"domain": dom})
+            email_domains.add(dom)
 
     # IPv6 BEFORE IPv4 so embedded-IPv4 forms are not split, and so v4 inside
     # v6 spans is suppressed.
@@ -325,28 +432,30 @@ def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
             if val == "::" or len(val) < 3 or ":" not in val:
                 continue
             v6_spans.append(m.span())
-            _add(seen, iocs, val, "ipv6")
+            _add(seen, iocs, val, "ipv6", _ip_context(val))
 
     if "ipv4" in wanted:
         for m in _IPV4_RE.finditer(refanged):
             s, e = m.span()
             if any(s >= vs and e <= ve for vs, ve in v6_spans):
                 continue
-            _add(seen, iocs, m.group(0), "ipv4")
+            _add(seen, iocs, m.group(0), "ipv4", _ip_context(m.group(0)))
 
     # CVEs.
     if "cve" in wanted:
         for m in _CVE_RE.finditer(text):
-            _add(seen, iocs, m.group(0).upper(), "cve")
+            val = m.group(0).upper()
+            _add(seen, iocs, val, "cve", {"year": int(val.split("-")[1])})
 
     # Bitcoin addresses (checksum-validated to cut false positives).
     if "btc" in wanted:
         for m in _BTC_B58_RE.finditer(text):
             addr = m.group(0)
             if _b58_checksum_ok(addr):
-                _add(seen, iocs, addr, "btc")
+                fmt = "p2pkh" if addr.startswith("1") else "p2sh"
+                _add(seen, iocs, addr, "btc", {"format": fmt})
         for m in _BTC_BECH32_RE.finditer(text):
-            _add(seen, iocs, m.group(0).lower(), "btc")
+            _add(seen, iocs, m.group(0).lower(), "btc", {"format": "bech32"})
 
     # Domains (skip URL/email hosts, IPv4 literals, and file names).
     if "domain" in wanted:
@@ -359,7 +468,7 @@ def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
                 continue
             if low in url_hosts or low in email_domains:
                 continue
-            _add(seen, iocs, low, "domain")
+            _add(seen, iocs, low, "domain", {"tld": low.rsplit(".", 1)[-1]})
 
     # Stable canonical ordering: by type order, then original discovery order.
     order = {t: n for n, t in enumerate(IOC_TYPES)}
@@ -386,4 +495,4 @@ def extract_from_files(
 
 
 TOOL_NAME = "iocextract"
-TOOL_VERSION = "2.0.0"
+TOOL_VERSION = "2.1.0"

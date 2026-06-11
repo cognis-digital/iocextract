@@ -28,3 +28,13 @@
 2025-10-15T17:31:41  perf(scoring): handle empty and malformed input
 2025-11-05T12:48:48  chore: in case of fire — commit, push, leave building
 2025-11-24T19:05:55  ci(engine): add a regression fixture
+2025-12-15T14:22:02  chore(deps): pin the test dependencies
+2026-01-03T09:39:09  perf(cache): add color + severity icons
+2026-01-23T16:56:16  ci(report): trim whitespace in parsed fields
+2026-02-12T11:13:23  ci(io): handle CRLF line endings
+2026-03-04T18:30:30  fix(mcp): add --fail-on threshold handling
+2026-03-24T13:47:37  refactor(core): add pagination to large reports
+2026-03-25T08:04:44  style(output): add a fast path for the common case
+2026-04-14T15:21:51  style(output): stream large files without buffering
+2026-05-04T10:38:58  feat(scan): assert exit codes in tests
+2026-05-24T17:55:05  docs(rules): lower memory on big inputs

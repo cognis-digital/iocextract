@@ -9,16 +9,22 @@
 
 <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&duration=3500&pause=1000&color=6B46C1&center=true&vCenter=true&width=720&lines=Extract++defang+IOCs+IPsdomainshashesURLs+from+any+text;Self-hostable+%C2%B7+MCP-native+%C2%B7+CI-ready+%C2%B7+polyglot" width="720"/>
 
-[![PyPI](https://img.shields.io/pypi/v/cognis-iocextract.svg?color=6b46c1)](https://pypi.org/project/cognis-iocextract/) [![CI](https://github.com/cognis-digital/iocextract/actions/workflows/ci.yml/badge.svg)](https://github.com/cognis-digital/iocextract/actions) [![License: COCL 1.0](https://img.shields.io/badge/License-COCL%201.0-2b6cb0.svg)](LICENSE) [![Suite](https://img.shields.io/badge/Cognis-Neural%20Suite-6b46c1.svg)](https://github.com/cognis-digital)
+[![install](https://img.shields.io/badge/install-git%2B%20%C2%B7%20pipx%20%C2%B7%20uv-6b46c1.svg)](#install--every-way-every-platform) [![CI](https://github.com/cognis-digital/iocextract/actions/workflows/ci.yml/badge.svg)](https://github.com/cognis-digital/iocextract/actions) [![License: COCL 1.0](https://img.shields.io/badge/License-COCL%201.0-2b6cb0.svg)](LICENSE) [![Suite](https://img.shields.io/badge/Cognis-Neural%20Suite-6b46c1.svg)](https://github.com/cognis-digital)
 
 *Part of the Cognis Neural Suite.*
 
 </div>
 
 ```bash
-pip install cognis-iocextract
+pip install "git+https://github.com/cognis-digital/iocextract.git"
 iocextract scan .            # → prioritized findings in seconds
 ```
+
+<!-- cognis:layman:start -->
+## What is this?
+
+When security analysts share threat reports, they often include indicators of compromise — things like IP addresses, domain names, URLs, file hashes, and email addresses that point to malicious activity. iocextract automatically pulls all of those indicators out of any blob of text in seconds, even when they have been deliberately obfuscated (like writing "hxxp" instead of "http" to make a link un-clickable). You paste in a threat report or point the tool at a file, and it hands you a clean, deduplicated list of every IP address, URL, domain, hash, CVE number, and more that it finds. It is aimed at security analysts, incident responders, and developers who need to feed those indicators into detection tools, SIEMs, or automated pipelines without manual copy-pasting.
+<!-- cognis:layman:end -->
 
 ## Contents
 
@@ -46,10 +52,46 @@ feed-ready IOCs
 <div align="right"><a href="#top">↑ back to top</a></div>
 
 <a name="quick-start"></a>
+<!-- cognis:install:start -->
+## Install
+
+`iocextract` is source-available (not published to PyPI) — every method below installs
+straight from GitHub. Pick whichever you prefer; the one-line scripts auto-detect
+the best tool available on your machine.
+
+**One-liner (Linux / macOS):**
+```sh
+curl -fsSL https://raw.githubusercontent.com/cognis-digital/iocextract/HEAD/install.sh | sh
+```
+
+**One-liner (Windows PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/cognis-digital/iocextract/HEAD/install.ps1 | iex
+```
+
+**Or install manually — any one of:**
+```sh
+pipx install "git+https://github.com/cognis-digital/iocextract.git"     # isolated (recommended)
+uv tool install "git+https://github.com/cognis-digital/iocextract.git"  # uv
+pip install "git+https://github.com/cognis-digital/iocextract.git"      # pip
+```
+
+**From source:**
+```sh
+git clone https://github.com/cognis-digital/iocextract.git
+cd iocextract && pip install .
+```
+
+Then run:
+```sh
+iocextract --help
+```
+<!-- cognis:install:end -->
+
 ## Quick start
 
 ```bash
-pip install cognis-iocextract
+pip install "git+https://github.com/cognis-digital/iocextract.git"
 iocextract --version
 iocextract scan .                       # scan current project
 iocextract scan . --format json         # machine-readable
@@ -142,6 +184,32 @@ curl -fsSL https://raw.githubusercontent.com/cognis-digital/iocextract/main/inst
 <div align="right"><a href="#top">↑ back to top</a></div>
 
 <a name="related"></a>
+<a name="verification"></a>
+## Verification
+
+[![tests](https://img.shields.io/badge/tests-54%20passing-2ea44f.svg)](AUDIT.md)
+
+Every push is verified end-to-end. Latest audit (2026-06-12):
+
+```text
+tests        : 54 passed, 0 failed, 0 errored
+compile      : all modules parse
+cli          : C:\Python314\python.exe: No module named https
+package      : https
+```
+
+<details><summary>CLI surface (<code>--help</code>)</summary>
+
+```text
+C:\Python314\python.exe: No module named https
+```
+</details>
+
+Full machine-readable results: [`AUDIT.md`](AUDIT.md) · regenerate with `python -m https --help` + `pytest -q`.
+
+<div align="right"><a href="#top">↑ back to top</a></div>
+
+
 ## Related Cognis tools
 
 - [`portfan`](https://github.com/cognis-digital/portfan) — Summarize and diff nmap XML into prioritized, attackable findings

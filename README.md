@@ -20,6 +20,34 @@ pip install cognis-iocextract
 iocextract scan .            # → prioritized findings in seconds
 ```
 
+## Usage — step by step
+
+1. **Install** the extractor:
+
+   ```bash
+   pip install cognis-iocextract
+   ```
+
+2. **Extract IOCs** from files (or stdin), optionally restricting types and dropping private/reserved IPs:
+
+   ```bash
+   iocextract extract report.txt --type ipv4,url,domain --no-private
+   ```
+
+3. **Get an analyst summary** (counts, IP scopes, networkable totals) as JSON:
+
+   ```bash
+   iocextract analyze report.txt --format json | jq '.by_type'
+   ```
+
+4. **Read the result.** Indicators are defanged for safe handling; `iocextract types` lists supported types, and `iocextract defang <url>` / `iocextract refang` convert a single value. Exit `1` when any IOC is found, `0` when none.
+
+5. **Automate in a feed.** Pipe text in and pull defanged indicators for downstream processing:
+
+   ```bash
+   cat alert.eml | iocextract extract --format json | jq -r '.iocs[].defanged'
+   ```
+
 ## Contents
 
 - [Why iocextract?](#why) · [Features](#features) · [Quick start](#quick-start) · [Example](#example) · [Architecture](#architecture) · [AI stack](#ai-stack) · [How it compares](#how-it-compares) · [Integrations](#integrations) · [Install anywhere](#install-anywhere) · [Related](#related) · [Contributing](#contributing)

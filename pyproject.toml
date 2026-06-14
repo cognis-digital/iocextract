@@ -34,3 +34,6 @@ iocextract = "iocextract.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["iocextract"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

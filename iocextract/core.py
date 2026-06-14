@@ -240,7 +240,11 @@ def refang(text: str) -> str:
 
     Handles common analyst conventions: ``hxxp``, ``[.]``, ``(dot)``, ``[at]``,
     ``[:]``, ``[://]`` and spaced ``[dot]`` / ``(dot)`` word forms.
+
+    Raises :class:`TypeError` if *text* is not a string.
     """
+    if not isinstance(text, str):
+        raise TypeError(f"refang() requires a str, got {type(text).__name__!r}")
     out = text
     for needle, repl in _REFANG_SUBS:
         out = out.replace(needle, repl)
@@ -252,7 +256,16 @@ def refang(text: str) -> str:
 
 
 def defang(value: str, ioc_type: str) -> str:
-    """Produce a safe, non-clickable representation of an IOC."""
+    """Produce a safe, non-clickable representation of an IOC.
+
+    Raises :class:`TypeError` if *value* or *ioc_type* is not a string.
+    """
+    if not isinstance(value, str):
+        raise TypeError(f"defang() value must be a str, got {type(value).__name__!r}")
+    if not isinstance(ioc_type, str):
+        raise TypeError(
+            f"defang() ioc_type must be a str, got {type(ioc_type).__name__!r}"
+        )
     if ioc_type in ("md5", "sha1", "sha256", "sha512", "cve", "btc", "registry"):
         return value  # inert / not clickable
     out = value
@@ -367,8 +380,21 @@ def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
     per type; the final list is sorted by canonical type order then discovery.
     Each indicator carries an analyst ``context`` dict where it adds value
     (IP scope, hash family, URL host).
+
+    Raises :class:`TypeError` if *text* is not a string.
+    Raises :class:`ValueError` if *types* contains an unrecognised type name.
     """
-    wanted = set(types) if types else set(IOC_TYPES)
+    if not isinstance(text, str):
+        raise TypeError(f"extract() requires a str, got {type(text).__name__!r}")
+    if types is not None:
+        types = list(types)
+        bad = [t for t in types if t not in IOC_TYPES]
+        if bad:
+            raise ValueError(
+                f"unknown IOC type(s): {', '.join(bad)}; "
+                f"valid: {', '.join(IOC_TYPES)}"
+            )
+    wanted = set(types) if types is not None else set(IOC_TYPES)
     refanged = refang(text)
     iocs: list[IOC] = []
     seen: set = set()
@@ -480,12 +506,25 @@ def extract(text: str, types: Iterable[str] | None = None) -> ExtractResult:
 def extract_from_files(
     paths: Iterable[str], types: Iterable[str] | None = None
 ) -> ExtractResult:
-    """Extract IOCs across multiple files, merged and deduplicated."""
+    """Extract IOCs across multiple files, merged and deduplicated.
+
+    Each path must be a file (not a directory).  :class:`OSError` is re-raised
+    with the offending path included in the message so callers can identify
+    which file failed.  Binary content is transparently decoded with
+    ``errors='replace'``; the caller receives whatever IOCs were successfully
+    extracted from readable files before any error.
+    """
     merged: list[IOC] = []
     seen: set = set()
     for path in paths:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            res = extract(fh.read(), types=types)
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                res = extract(fh.read(), types=types)
+        except IsADirectoryError:
+            raise OSError(f"expected a file, got a directory: {path!r}")
+        except OSError as exc:
+            # Re-raise with the path embedded so callers know which file failed.
+            raise OSError(f"{exc.strerror}: {path!r}") from exc
         for ioc in res.iocs:
             key = (ioc.type, ioc.value.lower())
             if key not in seen:

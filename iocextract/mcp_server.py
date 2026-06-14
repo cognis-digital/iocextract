@@ -1,6 +1,10 @@
-"""IOCEXTRACT MCP server — exposes scan() as an MCP tool for Cognis.Studio."""
+"""IOCEXTRACT MCP server — exposes extract() as an MCP tool for Cognis.Studio."""
 from __future__ import annotations
-from iocextract.core import scan, to_json
+
+import json
+
+from iocextract.core import extract
+
 
 def serve() -> int:
     """Start an MCP stdio server. Requires the optional 'mcp' extra:
@@ -15,8 +19,11 @@ def serve() -> int:
 
     @app.tool()
     def iocextract_scan(target: str) -> str:
-        """Extract & defang IOCs (IPs/domains/hashes/URLs) from any text. Returns JSON findings."""
-        return to_json(scan(target))
+        """Extract & defang IOCs from text. Returns JSON findings."""
+        if not isinstance(target, str):
+            return json.dumps({"error": "target must be a string"})
+        result = extract(target)
+        return json.dumps(result.as_dict())
 
     app.run()
     return 0

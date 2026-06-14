@@ -211,13 +211,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "refang":
         text = " ".join(args.text) if args.text else _read_stdin()
-        sys.stdout.write(refang(text))
+        try:
+            result_text = refang(text)
+        except (TypeError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        sys.stdout.write(result_text)
         if not text.endswith("\n"):
             sys.stdout.write("\n")
         return 0
 
     if args.command == "defang":
-        print(defang(args.value, args.as_type))
+        try:
+            print(defang(args.value, args.as_type))
+        except (TypeError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
         return 0
 
     return 2
